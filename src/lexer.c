@@ -199,37 +199,201 @@ static token_T* lexer_parse_erb_open(lexer_T* lexer) {
   return lexer_error(lexer, "Unexpected ERB start");
 }
 
+typedef struct {
+  uint32_t start;
+  uint32_t len;
+  bool allow_indent;
+} heredoc_spec_T;
+
+#define MAX_HEREDOC_DEPTH 8
+#define MAX_HEREDOC_DELIM_LEN 256
+
+static inline bool erb_end_at(const lexer_T* lexer) {
+  char c0 = lexer->current_character;
+  char c1 = lexer_peek(lexer, 1);
+
+  if (c0 == '%' && c1 == '>') { return true; }
+  if (c0 == '-' && c1 == '%' && lexer_peek(lexer, 2) == '>') { return true; }
+  if (c0 == '=' && c1 == '%' && lexer_peek(lexer, 2) == '>') { return true; }
+  if (c0 == '%' && c1 == '%' && lexer_peek(lexer, 2) == '>') { return true; }
+
+  return false;
+}
+
+static inline void erb_content_advance(lexer_T* lexer) {
+  if (is_newline(lexer->current_character)) {
+    lexer->current_line++;
+    lexer->current_column = 0;
+  } else {
+    lexer->current_column++;
+  }
+
+  lexer->current_position++;
+  lexer->current_character = lexer->source.data[lexer->current_position];
+}
+
+static bool try_parse_heredoc_opener(
+  const lexer_T* lexer,
+  heredoc_spec_T* spec,
+  uint32_t* chars_consumed
+) {
+  uint32_t pos = lexer->current_position;
+  uint32_t max = lexer->source.length;
+  const char* data = lexer->source.data;
+
+  if (pos + 1 >= max || data[pos] != '<' || data[pos + 1] != '<') { return false; }
+
+  pos += 2;
+
+  bool allow_indent = false;
+
+  if (pos < max && (data[pos] == '~' || data[pos] == '-')) {
+    allow_indent = true;
+    pos++;
+  }
+
+  if (pos >= max) { return false; }
+
+  char quote_char = 0;
+
+  if (data[pos] == '"' || data[pos] == '\'' || data[pos] == '`') {
+    quote_char = data[pos];
+    pos++;
+  }
+
+  uint32_t delim_start = pos;
+
+  if (quote_char) {
+    while (pos < max && data[pos] != quote_char && data[pos] != '\n' && data[pos] != '\r') {
+      pos++;
+    }
+
+    if (pos >= max || data[pos] != quote_char) { return false; }
+
+    uint32_t delim_len = pos - delim_start;
+    pos++;
+
+    if (delim_len == 0 || delim_len > MAX_HEREDOC_DELIM_LEN) { return false; }
+
+    spec->start = delim_start;
+    spec->len = delim_len;
+    spec->allow_indent = allow_indent;
+    *chars_consumed = pos - lexer->current_position;
+
+    return true;
+  }
+
+  if (!(isalpha(data[pos]) || data[pos] == '_')) { return false; }
+
+  while (pos < max && (isalnum(data[pos]) || data[pos] == '_')) {
+    pos++;
+  }
+
+  uint32_t delim_len = pos - delim_start;
+
+  if (delim_len == 0 || delim_len > MAX_HEREDOC_DELIM_LEN) { return false; }
+
+  spec->start = delim_start;
+  spec->len = delim_len;
+  spec->allow_indent = allow_indent;
+  *chars_consumed = pos - lexer->current_position;
+
+  return true;
+}
+
+static bool check_heredoc_terminator(const lexer_T* lexer, const heredoc_spec_T* spec) {
+  uint32_t pos = lexer->current_position;
+  uint32_t max = lexer->source.length;
+  const char* data = lexer->source.data;
+
+  if (spec->allow_indent) {
+    while (pos < max && (data[pos] == ' ' || data[pos] == '\t')) {
+      pos++;
+    }
+  }
+
+  if (pos + spec->len > max) { return false; }
+  if (memcmp(&data[pos], &data[spec->start], spec->len) != 0) { return false; }
+
+  uint32_t after = pos + spec->len;
+
+  return after >= max || data[after] == '\n' || data[after] == '\r';
+}
+
 static token_T* lexer_parse_erb_content(lexer_T* lexer) {
   uint32_t start_position = lexer->current_position;
 
-  while (!lexer_peek_erb_end(lexer, 0)) {
+  bool is_erb_comment =
+    start_position >= 3 && lexer->source.data[start_position - 3] == '<' && lexer->source.data[start_position - 2] == '%'
+    && lexer->source.data[start_position - 1] == '#';
+
+  char quote = 0;
+  bool escaped = false;
+
+  heredoc_spec_T heredocs[MAX_HEREDOC_DEPTH];
+  int heredoc_depth = 0;
+  bool at_line_start = false;
+
+  while (true) {
     if (lexer_eof(lexer)) {
-      token_T* token = token_init(
-        hb_string_range(lexer->source, start_position, lexer->current_position),
-        TOKEN_ERROR,
-        lexer
-      ); // Handle unexpected EOF
-
-      return token;
+      return token_init(
+        hb_string_range(lexer->source, start_position, lexer->current_position), TOKEN_ERROR, lexer
+      );
     }
 
-    if (is_newline(lexer->current_character)) {
-      lexer->current_line++;
-      lexer->current_column = 0;
-    } else {
-      lexer->current_column++;
+    if (heredoc_depth == 0 && quote == 0 && erb_end_at(lexer)) { break; }
+
+    char ch = lexer->current_character;
+
+    if (heredoc_depth > 0 && at_line_start) {
+      if (check_heredoc_terminator(lexer, &heredocs[heredoc_depth - 1])) {
+        heredoc_depth--;
+      }
     }
 
-    lexer->current_position++;
-    lexer->current_character = lexer->source.data[lexer->current_position];
+    if (is_newline(ch)) {
+      at_line_start = true;
+    } else if (at_line_start && ch != ' ' && ch != '\t') {
+      at_line_start = false;
+    }
+
+    if (!is_erb_comment && heredoc_depth == 0) {
+      if (quote != 0) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch == '\\' && quote != '\'') {
+          escaped = true;
+        } else if (ch == quote) {
+          quote = 0;
+        }
+      } else {
+        if (ch == '"' || ch == '\'') {
+          quote = ch;
+        } else if (ch == '#') {
+          while (!lexer_eof(lexer) && !is_newline(lexer->current_character) && !erb_end_at(lexer)) {
+            erb_content_advance(lexer);
+          }
+
+          continue;
+        } else if (ch == '<') {
+          heredoc_spec_T spec;
+          uint32_t consumed = 0;
+
+          if (heredoc_depth < MAX_HEREDOC_DEPTH && try_parse_heredoc_opener(lexer, &spec, &consumed)) {
+            heredocs[heredoc_depth++] = spec;
+          }
+        }
+      }
+    }
+
+    erb_content_advance(lexer);
   }
 
   lexer->state = STATE_ERB_CLOSE;
 
-  token_T* token =
-    token_init(hb_string_range(lexer->source, start_position, lexer->current_position), TOKEN_ERB_CONTENT, lexer);
-
-  return token;
+  return token_init(
+    hb_string_range(lexer->source, start_position, lexer->current_position), TOKEN_ERB_CONTENT, lexer
+  );
 }
 
 static token_T* lexer_parse_erb_close(lexer_T* lexer) {
