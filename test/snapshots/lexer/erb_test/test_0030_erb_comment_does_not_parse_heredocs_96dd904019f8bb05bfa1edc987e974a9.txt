@@ -1,0 +1,11 @@
+---
+source: "Lexer::ERBTest#test_0030_erb comment does not parse heredocs"
+input: |2-
+<%# <<~HEREDOC
+%>
+---
+#<Herb::Token type="TOKEN_ERB_START" value="<%#" range=[0, 3] start=(1:0) end=(1:3)>
+#<Herb::Token type="TOKEN_ERB_CONTENT" value=" <<~HEREDOC\n" range=[3, 15] start=(1:3) end=(2:0)>
+#<Herb::Token type="TOKEN_ERB_END" value="%>" range=[15, 17] start=(2:0) end=(2:2)>
+#<Herb::Token type="TOKEN_NEWLINE" value="\n" range=[17, 18] start=(2:2) end=(3:0)>
+#<Herb::Token type="TOKEN_EOF" value="<EOF>" range=[18, 18] start=(3:0) end=(3:0)>

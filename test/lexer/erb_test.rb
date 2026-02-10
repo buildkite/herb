@@ -90,5 +90,105 @@ module Lexer
     test "erb tag followed by literal closing delimiter" do
       assert_lexed_snapshot(%(<% content %> %>))
     end
+
+    # === Heredoc support ===
+
+    test "erb heredoc with %> inside body" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = <<~HEREDOC
+          some content %> here
+        HEREDOC
+        %>
+      HTML
+    end
+
+    test "erb heredoc bare identifier" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = <<HEREDOC
+        content with %> inside
+        HEREDOC
+        %>
+      HTML
+    end
+
+    test "erb heredoc with dash (<<-)" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = <<-HEREDOC
+          content with %> inside
+          HEREDOC
+        %>
+      HTML
+    end
+
+    test "erb heredoc with squiggly (<<~)" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = <<~HEREDOC
+          content with %> inside
+        HEREDOC
+        %>
+      HTML
+    end
+
+    test "erb heredoc with double-quoted delimiter" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = <<"HEREDOC"
+        content with %> inside
+        HEREDOC
+        %>
+      HTML
+    end
+
+    test "erb heredoc with single-quoted delimiter" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = <<'HEREDOC'
+        content with %> inside
+        HEREDOC
+        %>
+      HTML
+    end
+
+    # === String literals with %> ===
+
+    test "erb double-quoted string with %> inside" do
+      assert_lexed_snapshot(%(<%= "hello %> world" %>))
+    end
+
+    test "erb single-quoted string with %> inside" do
+      assert_lexed_snapshot(%(<%= 'hello %> world' %>))
+    end
+
+    test "erb string with escaped quote before %>" do
+      assert_lexed_snapshot(%(<%= "hello \\" %> world" %>))
+    end
+
+    # === Ruby comments ===
+
+    test "erb ruby comment does not skip %> closer" do
+      assert_lexed_snapshot(<<~'HTML')
+        <% x = 1 # this is a comment with %> in it
+        %>
+      HTML
+    end
+
+    test "erb ruby comment at end of content" do
+      assert_lexed_snapshot(%(<% x = 1 # comment %>))
+    end
+
+    # === ERB comment tags ===
+
+    test "erb comment does not parse ruby strings" do
+      assert_lexed_snapshot(%(<%# "unclosed string %>))
+    end
+
+    test "erb comment does not parse heredocs" do
+      assert_lexed_snapshot(<<~'HTML')
+        <%# <<~HEREDOC
+        %>
+      HTML
+    end
+
+    test "erb comment with %> closes normally" do
+      assert_lexed_snapshot(%(<%# this is a comment %>))
+    end
   end
 end
