@@ -164,5 +164,22 @@ module Engine
 
       assert_compiled_snapshot(template, escape: false)
     end
+
+    test "heredoc with trailing arguments compiles to valid Ruby" do
+      template = <<~'ERB'
+        <%= method_call <<~GRAPHQL, variables
+          query {
+            field
+          }
+        GRAPHQL
+        %>
+      ERB
+
+      engine = Herb::Engine.new(template)
+      compiled = engine.src
+
+      result = Prism.parse(compiled)
+      assert_empty result.errors, "Compiled Ruby has syntax errors:\n#{compiled}\n\nErrors: #{result.errors.map(&:message).join(", ")}"
+    end
   end
 end

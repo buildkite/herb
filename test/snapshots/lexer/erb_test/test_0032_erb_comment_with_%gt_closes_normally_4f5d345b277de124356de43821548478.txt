@@ -1,5 +1,5 @@
 ---
-source: "Lexer::ERBTest#test_0031_erb comment with %> closes normally"
+source: "Lexer::ERBTest#test_0032_erb comment with %> closes normally"
 input: "<%# this is a comment %>"
 ---
 #<Herb::Token type="TOKEN_ERB_START" value="<%#" range=[0, 3] start=(1:0) end=(1:3)>

@@ -1,5 +1,5 @@
 ---
-source: "Lexer::ERBTest#test_0027_erb ruby comment does not skip %> closer"
+source: "Lexer::ERBTest#test_0028_erb ruby comment does not skip %> closer"
 input: |2-
 <% x = 1 # this is a comment with %> in it
 %>

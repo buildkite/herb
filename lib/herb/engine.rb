@@ -244,7 +244,7 @@ module Herb
     end
 
     def comment_aware_newline(code)
-      code.include?("#") ? "\n" : ""
+      (code.include?("#") || code.match?(/<<[~-]?\s*['"`]?\w/)) ? "\n" : ""
     end
 
     def add_postamble(postamble)

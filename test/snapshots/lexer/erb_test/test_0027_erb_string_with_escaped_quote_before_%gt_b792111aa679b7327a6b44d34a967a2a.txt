@@ -1,5 +1,5 @@
 ---
-source: "Lexer::ERBTest#test_0026_erb string with escaped quote before %>"
+source: "Lexer::ERBTest#test_0027_erb string with escaped quote before %>"
 input: "<%= \"hello \\\" %> world\" %>"
 ---
 #<Herb::Token type="TOKEN_ERB_START" value="<%=" range=[0, 3] start=(1:0) end=(1:3)>

@@ -129,6 +129,17 @@ module Lexer
       HTML
     end
 
+    test "erb heredoc with trailing arguments after identifier" do
+      assert_lexed_snapshot(<<~'HTML')
+        <%= method_call <<~GRAPHQL, variables
+          query {
+            field
+          }
+        GRAPHQL
+        %>
+      HTML
+    end
+
     test "erb heredoc with double-quoted delimiter" do
       assert_lexed_snapshot(<<~'HTML')
         <% x = <<"HEREDOC"

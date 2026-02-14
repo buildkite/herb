@@ -1,5 +1,5 @@
 ---
-source: "Lexer::ERBTest#test_0023_erb heredoc with single-quoted delimiter"
+source: "Lexer::ERBTest#test_0024_erb heredoc with single-quoted delimiter"
 input: |2-
 <% x = <<'HEREDOC'
 content with %> inside

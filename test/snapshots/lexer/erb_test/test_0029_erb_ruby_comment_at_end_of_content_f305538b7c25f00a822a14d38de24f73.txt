@@ -1,5 +1,5 @@
 ---
-source: "Lexer::ERBTest#test_0028_erb ruby comment at end of content"
+source: "Lexer::ERBTest#test_0029_erb ruby comment at end of content"
 input: "<% x = 1 # comment %>"
 ---
 #<Herb::Token type="TOKEN_ERB_START" value="<%" range=[0, 2] start=(1:0) end=(1:2)>

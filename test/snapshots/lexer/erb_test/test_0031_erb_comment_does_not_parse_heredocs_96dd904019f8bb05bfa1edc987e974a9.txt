@@ -1,5 +1,5 @@
 ---
-source: "Lexer::ERBTest#test_0030_erb comment does not parse heredocs"
+source: "Lexer::ERBTest#test_0031_erb comment does not parse heredocs"
 input: |2-
 <%# <<~HEREDOC
 %>
