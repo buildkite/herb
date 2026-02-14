@@ -181,5 +181,27 @@ module Engine
       result = Prism.parse(compiled)
       assert_empty result.errors, "Compiled Ruby has syntax errors:\n#{compiled}\n\nErrors: #{result.errors.map(&:message).join(", ")}"
     end
+
+    test "heredoc with trailing arguments passes variables at runtime" do
+      template = <<~'ERB'
+        <%= method_call <<~GRAPHQL, variables
+          query {
+            field
+          }
+        GRAPHQL
+        %>
+      ERB
+
+      engine = Herb::Engine.new(template)
+      compiled = engine.src
+
+      context = Object.new
+      context.define_singleton_method(:method_call) { |query, vars| "#{query.strip}:#{vars}" }
+      context.define_singleton_method(:variables) { { id: 1 } }
+
+      output = context.instance_eval(compiled)
+      assert_includes output, "query {\n  field\n}"
+      assert_includes output, ":{id: 1}"
+    end
   end
 end
